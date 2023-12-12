@@ -20,12 +20,12 @@ async def fetch(session, url):
         return await response.text()
 
 
-async def process_article(session, morph, charged_words, url, title):
+async def process_article(session, morph, charged_words, url, title, results):
     html = await fetch(session, url)
     clean_plaintext = sanitize(html, plaintext=True)
     words = split_by_words(morph, clean_plaintext)
     jaundice_rate = calculate_jaundice_rate(words, charged_words)
-    print(
+    results.append(
         f'URL: {url}\n'
         f'Рейтинг: {jaundice_rate}\n'
         f'Слов в статье: {len(words)}\n'
@@ -37,15 +37,19 @@ async def main():
     with open('negative_words.txt', encoding="utf-8") as file:
         charged_words = [word.replace('\n', '') for word in file.readlines()]
     title = ''
+    results = []
     async with aiohttp.ClientSession() as session:
         try:
             async with anyio.create_task_group() as task_group:
                 for url in TEST_ARTICLES:
-                    task_group.start_soon(process_article, session, morph, charged_words, url, title)
+                    task_group.start_soon(process_article, session, morph, charged_words, url, title, results)
         except* (BaseException, SystemExit) as excgroup:
             for _ in excgroup.exceptions:
                 task_group.cancel_scope.cancel()
-
+                
+    for result in results:
+        print(result)
+    
 
 if __name__ == "__main__":
     anyio.run(main)
