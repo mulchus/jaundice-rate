@@ -10,7 +10,7 @@ TEST_ARTICLES = [
     'https://inosmi.ru/20231212/zelenskiy--267038091.html',
     'https://inosmi.ru/20231212/zelenskiy-267038799.html',
     'https://inosmi.ru/20231212/ssha-267035917.html',
-    'https://inosmi.ru/20231212/farerskie_ostrova-267035597.html',
+    'https://inosmi.ru/20231212/farerskie_ostrova-267035597.html--',
 ]
 
 
@@ -21,7 +21,14 @@ async def fetch(session, url):
 
 
 async def process_article(session, morph, charged_words, url, title, results):
-    html = await fetch(session, url)
+    try:
+        html = await fetch(session, url)
+    except aiohttp.client_exceptions.ClientResponseError:
+        results.append(
+            f'Wrong URL: {url}\n'
+        )
+        return
+    
     clean_plaintext = sanitize(html, plaintext=True)
     words = split_by_words(morph, clean_plaintext)
     jaundice_rate = calculate_jaundice_rate(words, charged_words)
@@ -43,7 +50,7 @@ async def main():
             async with anyio.create_task_group() as task_group:
                 for url in TEST_ARTICLES:
                     task_group.start_soon(process_article, session, morph, charged_words, url, title, results)
-        except* (BaseException, SystemExit) as excgroup:
+        except* Exception as excgroup:
             for _ in excgroup.exceptions:
                 task_group.cancel_scope.cancel()
                 
