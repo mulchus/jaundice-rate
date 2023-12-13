@@ -1,7 +1,7 @@
 import aiohttp
 import anyio
 
-from adapters.inosmi_ru import sanitize
+from adapters.inosmi_ru import sanitize, ArticleNotFound
 from text_tools import calculate_jaundice_rate, split_by_words, pymorphy2
 
 
@@ -10,7 +10,8 @@ TEST_ARTICLES = [
     'https://inosmi.ru/20231212/zelenskiy--267038091.html',
     'https://inosmi.ru/20231212/zelenskiy-267038799.html',
     'https://inosmi.ru/20231212/ssha-267035917.html',
-    'https://inosmi.ru/20231212/farerskie_ostrova-267035597.html--',
+    'https://lenta.ru/brief/2021/08/26/afg_terror/',
+    'https://inosmi.ru/20231212/ssha-267035917.html--',
 ]
 
 
@@ -21,22 +22,27 @@ async def fetch(session, url):
 
 
 async def process_article(session, morph, charged_words, url, title, results):
+    parsing_status = 'Ok'
+    jaundice_rate, len_words = None, None
     try:
         html = await fetch(session, url)
+        clean_plaintext = sanitize(html, plaintext=True)
+        words = split_by_words(morph, clean_plaintext)
+        len_words = len(words)
+        jaundice_rate = calculate_jaundice_rate(words, charged_words)
     except aiohttp.client_exceptions.ClientResponseError:
-        results.append(
-            f'Wrong URL: {url}\n'
-        )
+        parsing_status = 'WRONG URL!'
         return
-    
-    clean_plaintext = sanitize(html, plaintext=True)
-    words = split_by_words(morph, clean_plaintext)
-    jaundice_rate = calculate_jaundice_rate(words, charged_words)
-    results.append(
-        f'URL: {url}\n'
-        f'Рейтинг: {jaundice_rate}\n'
-        f'Слов в статье: {len(words)}\n'
-    )
+    except ArticleNotFound:
+        parsing_status = 'PARSING_ERROR'
+        return
+    finally:
+        results.append(
+            f'URL: {url}\n'
+            f'Статус: {parsing_status}\n'
+            f'Рейтинг: {jaundice_rate}\n'
+            f'Слов в статье: {len_words}\n'
+        )
 
 
 async def main():
@@ -53,10 +59,10 @@ async def main():
         except* Exception as excgroup:
             for _ in excgroup.exceptions:
                 task_group.cancel_scope.cancel()
-                
+
     for result in results:
         print(result)
-    
+
 
 if __name__ == "__main__":
     anyio.run(main)
