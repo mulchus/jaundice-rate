@@ -8,3 +8,4 @@ pymorphy2==0.8
 pymorphy2-dicts==2.*
 DAWG-Python==0.7.*
 anyio==4.1.*
+async-timeout==4.0.*
