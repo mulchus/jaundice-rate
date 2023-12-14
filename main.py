@@ -48,7 +48,7 @@ async def process_article(session, morph, charged_words, url, title):
             start_time = current_time = monotonic()
             with counter():
                 clean_plaintext = sanitize(html, plaintext=True)
-                words = split_by_words(morph, clean_plaintext)
+                words = await split_by_words(morph, clean_plaintext)
                 jaundice_rate = calculate_jaundice_rate(words, charged_words)
             time_delta = current_time - start_time  # здесь current_time = значению уже после выполнения блока под with
     except aiohttp.client_exceptions.ClientResponseError:
