@@ -32,55 +32,25 @@ async def fetch(session, url):
         return await response.text()
 
 
-class Timer:
-    def __int__(self):
-        self.elapsed_time = None
-        return self
-
-    def __enter__(self):
-        self.start_time = monotonic()
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.elapsed_time = monotonic() - self.start_time
-        return self
-
-
-@contextmanager
-def counter(*args, **kwds):
-    # Code to acquire resource, e.g.:
-    # start_time = monotonic()
-    real_time = monotonic()
-    # resource = acquire_resource(*args, **kwds)
-    try:
-        yield time
-    finally:
-        pass
-        # Code to release resource, e.g.:
-        # time_delta = monotonic() - start_time
-        # return time_delta
-        # release_resource(resource)
-
-
 async def process_article(session, morph, charged_words, url, title):
-    parsing_status = ''
-    time_delta = 0
-    jaundice_rate, len_words = None, None
+    
+    @contextmanager
+    def counter():
+        nonlocal current_time
+        yield
+        current_time = monotonic()
+    
+    parsing_status = 'Ok'
+    time_delta, jaundice_rate, words = 0.0, 0, []
     try:
         async with timeout(10):
             html = await fetch(session, url)
-            # with Timer() as timer:
-            with counter() as timer:
-                start_time = timer
+            start_time = current_time = monotonic()
+            with counter():
                 clean_plaintext = sanitize(html, plaintext=True)
                 words = split_by_words(morph, clean_plaintext)
                 jaundice_rate = calculate_jaundice_rate(words, charged_words)
-                len_words = len(words)
-                parsing_status = 'Ok'
-                time.sleep(.5)
-            time_delta = start_time - timer
-            # time_delta = timer.elapsed_time
-            print(time_delta)
+            time_delta = current_time - start_time  # здесь current_time = значению уже после выполнения блока под with
     except aiohttp.client_exceptions.ClientResponseError:
         parsing_status = 'WRONG URL!'
         return
@@ -92,13 +62,15 @@ async def process_article(session, morph, charged_words, url, title):
         return
     finally:
         print(
-            f'URL: {url}\n'
-            f'Статус: {parsing_status}\n'
-            f'Рейтинг: {jaundice_rate}\n'
-            f'Слов в статье: {len_words}'
+            f'\nURL: {url}\n'
+            f'Статус: {parsing_status}'
         )
-        time_logger.info(f'Анализ закончен за {round(time_delta, 3)} сек'),
-        print()
+        if time_delta:
+            print(
+                f'Рейтинг: {jaundice_rate}\n'
+                f'Слов в статье: {len(words)}'
+            )
+            time_logger.info(f' Анализ закончен за {time_delta} сек')
 
 
 def configuring_logging():
@@ -119,13 +91,13 @@ async def main():
         charged_words = [word.replace('\n', '') for word in file.readlines()]
     title = ''
     async with aiohttp.ClientSession() as session:
-        try:
-            async with anyio.create_task_group() as task_group:
-                for url in TEST_ARTICLES:
-                    task_group.start_soon(process_article, session, morph, charged_words, url, title)
-        except* Exception as excgroup:
-            for _ in excgroup.exceptions:
-                task_group.cancel_scope.cancel()
+        # try:
+        async with anyio.create_task_group() as task_group:
+            for url in TEST_ARTICLES:
+                task_group.start_soon(process_article, session, morph, charged_words, url, title)
+        # except* Exception as excgroup:
+        #     for _ in excgroup.exceptions:
+        #         task_group.cancel_scope.cancel()
 
 
 if __name__ == "__main__":
