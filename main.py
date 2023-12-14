@@ -32,19 +32,6 @@ async def fetch(session, url):
         return await response.text()
 
 
-# @contextmanager
-# def counter(*args, **kwds):
-#     # Code to acquire resource, e.g.:
-#     start_time = monotonic()
-#     # resource = acquire_resource(*args, **kwds)
-#     try:
-#         yield start_time
-#     finally:
-#         # Code to release resource, e.g.:
-#         return monotonic() - start_time
-#         # release_resource(resource)
-
-
 class Timer:
     def __int__(self):
         self.elapsed_time = None
@@ -59,6 +46,22 @@ class Timer:
         return self
 
 
+@contextmanager
+def counter(*args, **kwds):
+    # Code to acquire resource, e.g.:
+    # start_time = monotonic()
+    real_time = monotonic()
+    # resource = acquire_resource(*args, **kwds)
+    try:
+        yield time
+    finally:
+        pass
+        # Code to release resource, e.g.:
+        # time_delta = monotonic() - start_time
+        # return time_delta
+        # release_resource(resource)
+
+
 async def process_article(session, morph, charged_words, url, title):
     parsing_status = ''
     time_delta = 0
@@ -66,13 +69,18 @@ async def process_article(session, morph, charged_words, url, title):
     try:
         async with timeout(10):
             html = await fetch(session, url)
-            with Timer() as timer:
+            # with Timer() as timer:
+            with counter() as timer:
+                start_time = timer
                 clean_plaintext = sanitize(html, plaintext=True)
                 words = split_by_words(morph, clean_plaintext)
                 jaundice_rate = calculate_jaundice_rate(words, charged_words)
                 len_words = len(words)
                 parsing_status = 'Ok'
-            time_delta = timer.elapsed_time
+                time.sleep(.5)
+            time_delta = start_time - timer
+            # time_delta = timer.elapsed_time
+            print(time_delta)
     except aiohttp.client_exceptions.ClientResponseError:
         parsing_status = 'WRONG URL!'
         return
