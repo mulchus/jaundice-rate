@@ -33,13 +33,13 @@ async def fetch(session, url):
 
 
 async def process_article(session, morph, charged_words, url, title):
-    
+
     @contextmanager
     def counter():
         nonlocal current_time
         yield
         current_time = monotonic()
-    
+
     parsing_status = 'Ok'
     time_delta, jaundice_rate, words = 0.0, 0, []
     try:
@@ -51,13 +51,14 @@ async def process_article(session, morph, charged_words, url, title):
                 words = await split_by_words(morph, clean_plaintext)
                 jaundice_rate = calculate_jaundice_rate(words, charged_words)
             time_delta = current_time - start_time  # здесь current_time = значению уже после выполнения блока под with
+            await asyncio.sleep(0.1)  # это чек-поинт окончания блока для asyncio.timeout(!=0)
     except aiohttp.client_exceptions.ClientResponseError:
         parsing_status = 'WRONG URL!'
         return
     except ArticleNotFound:
         parsing_status = 'PARSING_ERROR'
         return
-    except asyncio.TimeoutError:
+    except TimeoutError:
         parsing_status = 'TIMEOUT'
         return
     finally:
