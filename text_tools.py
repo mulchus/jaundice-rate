@@ -1,17 +1,10 @@
-import time
-
 import pymorphy2
 import string
-import requests
 import asyncio
 import pytest
 
-# from async_timeout import timeout
 
-from time import monotonic
-
-
-# pytest_plugins = ('pytest_asyncio',)
+pytest_plugins = ('pytest_asyncio',)
 
 
 def _clean_word(word):
@@ -21,25 +14,20 @@ def _clean_word(word):
     return word
 
 
-# @pytest.fixture
 async def split_by_words(morph, text):
     """Учитывает знаки пунктуации, регистр и словоформы, выкидывает предлоги."""
     words = []
-    async with asyncio.timeout(.03):
-        a = monotonic()
+    async with asyncio.timeout(3):
         for word in text.split():
             cleaned_word = _clean_word(word)
             normalized_word = morph.parse(cleaned_word)[0].normal_form
             if len(normalized_word) > 2 or normalized_word == 'не':
                 words.append(normalized_word)
-        print(f'\nИТОГО {monotonic() - a}')
-        await asyncio.sleep(0.01)  # это чек-поинт окончания блока для asyncio.timeout(!=0)
+        await asyncio.sleep(0.1)  # это чек-поинт окончания блока для asyncio.timeout(!=0)
         return words
 
 
-pytestmark = pytest.mark.anyio
-
-
+@pytest.mark.asyncio
 async def test_split_by_words():
     # Экземпляры MorphAnalyzer занимают 10-15Мб RAM т.к. загружают в память много данных
     # Старайтесь организовать свой код так, чтоб создавать экземпляр MorphAnalyzer заранее и в единственном числе

@@ -3,7 +3,7 @@ aiodns==2.*
 beautifulsoup4==4.*
 requests==2.*
 pytest==7.*
-pymorphy2==0.8
+pymorphy2==0.9.*    # изменить - https://github.com/pymorphy2/pymorphy2/pull/161/commits/66c4649e00419ad71b8af441ed56edd1a9ad8e1a
 pymorphy2-dicts==2.*
 DAWG-Python==0.7.*
 anyio==4.1.*
