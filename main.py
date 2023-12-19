@@ -6,6 +6,7 @@ import sys
 from aiohttp import web
 import json
 import functools
+import ndjson
 
 from adapters.inosmi_ru import sanitize, ArticleNotFound
 from text_tools import calculate_jaundice_rate, split_by_words, pymorphy2
@@ -14,20 +15,16 @@ from time import monotonic
 from contextlib import contextmanager
 
 
-TEST_ARTICLES = [
-    # 'https://inosmi.ru/20231212/diplomatiya-267037596.html',
-    # 'https://inosmi.ru/20231212/zelenskiy--267038091.html',
-    # 'https://inosmi.ru/20231212/zelenskiy-267038799.html',
-    # 'https://inosmi.ru/20231212/ssha-267035917.html',
-    # 'https://lenta.ru/brief/2021/08/26/afg_terror/',
-    # 'https://inosmi.ru/20231212/ssha-267035917.html--',
-    # 'https://dvmn.org/filer/canonical/1561832205/162/',
-]
+# 'https://inosmi.ru/20231212/diplomatiya-267037596.html',
+# 'https://inosmi.ru/20231212/zelenskiy--267038091.html',
+# 'https://inosmi.ru/20231212/zelenskiy-267038799.html',
+# 'https://inosmi.ru/20231212/ssha-267035917.html',
+# 'https://lenta.ru/brief/2021/08/26/afg_terror/',
+# 'https://inosmi.ru/20231212/ssha-267035917.html--',
+# 'https://dvmn.org/filer/canonical/1561832205/162/',
 
 
 time_logger = logging.getLogger()
-charged_words = []
-morph = pymorphy2.MorphAnalyzer()
 
 
 def configuring_logging():
@@ -39,7 +36,7 @@ def configuring_logging():
     )
     logger_handler.setFormatter(logger_formatter)
     time_logger.addHandler(logger_handler)
-    
+
 
 async def fetch(session, url):
     async with session.get(url) as response:
@@ -47,7 +44,7 @@ async def fetch(session, url):
         return await response.text()
 
 
-async def process_article(session, url):
+async def process_article(session, morph, charged_words, url):
     @contextmanager
     def counter():
         nonlocal current_time
@@ -76,8 +73,8 @@ async def process_article(session, url):
         article_result = {
             'status': parsing_status,
             'url': url,
-            'score': None,
-            'words_count': None,
+            'score': 'null',
+            'words_count': 'null',
         }
         if time_delta:
             article_result['score'] = jaundice_rate
@@ -85,22 +82,17 @@ async def process_article(session, url):
     return article_result
 
 
-async def handle(request):
+async def handle(request, session, morph, charged_words):
     parsing_result = []
     urls = dict(request.query)['urls'].split(",")
     for url in urls:
-        async with aiohttp.ClientSession() as session:
-            parsing_result.append(await process_article(session, url))
-    parsing_result = str(parsing_result).replace("'", '"')
-    print(parsing_result)
-    # return web.Response(text=parsing_result)
-    return web.json_response(json.loads(parsing_result), dumps=functools.partial(json.dumps, indent=2))
-    # return web.Response(text=str(parsing_result))
+        parsing_result.append(await process_article(session, morph, charged_words, url))
+    return web.json_response(json.loads(str(parsing_result).replace("'", '"')), dumps=ndjson.dumps)
 
 
-async def server():
+async def server(session, morph, charged_words):
     app = web.Application()
-    app.add_routes([web.get('/', handle)])
+    app.add_routes([web.get('/', lambda request: handle(request, session, morph, charged_words))])
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, '127.0.0.1', 80)
@@ -110,27 +102,20 @@ async def server():
 
 
 async def main():
-    global charged_words
     configuring_logging()
+    morph = pymorphy2.MorphAnalyzer()
     with open('negative_words.txt', encoding="utf-8") as file:
         charged_words = [word.replace('\n', '') for word in file.readlines()]
-        
-    # morph = pymorphy2.MorphAnalyzer()
-    # with open('negative_words.txt', encoding="utf-8") as file:
-    #     charged_words = [word.replace('\n', '') for word in file.readlines()]
-    # title = ''
-    
-    # async with aiohttp.ClientSession() as session:
-    # try:
-    async with anyio.create_task_group() as task_group:
-        task_group.start_soon(server)
-            # for url in TEST_ARTICLES:
-            #     task_group.start_soon(process_article, session, morph, charged_words, url)  #, title)
-                
-    # except* Exception as excgroup:
-    #     for _ in excgroup.exceptions:
-    #         task_group.cancel_scope.cancel()
-        
+
+    async with aiohttp.ClientSession() as session:
+        # try:
+        async with anyio.create_task_group() as task_group:
+            task_group.start_soon(functools.partial(server, session, morph, charged_words))
+
+        # except* Exception as excgroup:
+        #     for _ in excgroup.exceptions:
+        #         task_group.cancel_scope.cancel()
+
 
 if __name__ == "__main__":
     anyio.run(main)
