@@ -33,7 +33,8 @@ async def test_split_by_words():
     # Старайтесь организовать свой код так, чтоб создавать экземпляр MorphAnalyzer заранее и в единственном числе
     morph = pymorphy2.MorphAnalyzer()
     assert await split_by_words(morph, 'Во-первых, он хочет, чтобы') == ['во-первых', 'хотеть', 'чтобы']
-    assert await split_by_words(morph, '«Удивительно, но это стало началом!»') == ['удивительно', 'это', 'стать', 'начало']
+    assert (await split_by_words(morph, '«Удивительно, но это стало началом!»') ==
+            ['удивительно', 'это', 'стать', 'начало'])
 
 
 def calculate_jaundice_rate(article_words, charged_words):
