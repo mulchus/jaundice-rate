@@ -2,6 +2,8 @@ import json
 import asyncio
 import ndjson
 import aiohttp
+import pytest
+
 
 from aiohttp import web
 from adapters.inosmi_ru import sanitize, ArticleNotFound
@@ -9,6 +11,9 @@ from async_timeout import timeout
 from time import monotonic
 from contextlib import contextmanager
 from text_tools import calculate_jaundice_rate, split_by_words, pymorphy2
+
+
+pytest_plugins = ('pytest_asyncio',)
 
 
 async def fetch(session, url):
@@ -76,3 +81,15 @@ async def server(charged_words):
     await site.start()
     while True:
         await asyncio.sleep(0)
+
+
+@pytest.mark.asyncio
+async def test_process_article():
+    morph = pymorphy2.MorphAnalyzer()
+    with open('negative_words.txt', encoding="utf-8") as file:
+        charged_words = [word.replace('\n', '') for word in file.readlines()]
+    async with aiohttp.ClientSession() as session:
+        status = await process_article(session, morph, charged_words,
+                                       'https://inosmi.ru/20231212/diplomatiya-267037596.html')[13:14]
+        assert status == ['Ok']
+        # assert await split_by_words(morph, '«Удивительно, но это стало началом!»') == ['удивительно', 'это', 'стать', 'начало']
