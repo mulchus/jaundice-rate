@@ -60,25 +60,24 @@ async def process_article(session, parsing_duration, morph, charged_words, url):
     return article_result
 
 
-async def handle(request, morph, charged_words):
+async def handle(request, morph, charged_words, duration):
     async with aiohttp.ClientSession() as session:
         parsing_result = []
-        parsing_duration = 10
         urls = dict(request.query)['urls'].split(",")
         if urls.__len__() > 10:
             raise web.HTTPBadRequest(reason='{"error": "too many urls in request, should be 10 or less"}')
         for url in urls:
-            parsing_result.append(await process_article(session, parsing_duration, morph, charged_words, url))
+            parsing_result.append(await process_article(session, duration, morph, charged_words, url))
         return web.json_response(json.loads(str(parsing_result).replace("'", '"')), dumps=ndjson.dumps)
 
 
-async def server(charged_words):
+async def server(charged_words, host, port, duration):
     morph = pymorphy2.MorphAnalyzer()
     app = web.Application()
-    app.add_routes([web.get('/', lambda request: handle(request, morph, charged_words))])
+    app.add_routes([web.get('/', lambda request: handle(request, morph, charged_words, duration))])
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, '127.0.0.1', 80)
+    site = web.TCPSite(runner, host, port)
     await site.start()
     while True:
         await asyncio.sleep(0)

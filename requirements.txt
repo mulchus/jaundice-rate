@@ -11,3 +11,4 @@ async-timeout==4.0.*
 #cchardet==2.*
 pytest-asyncio==0.23.*
 ndjson==0.3.*
+environs==10.*
