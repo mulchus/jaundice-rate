@@ -85,6 +85,8 @@ async def process_article(session, morph, charged_words, url):
 async def handle(request, session, morph, charged_words):
     parsing_result = []
     urls = dict(request.query)['urls'].split(",")
+    if urls.__len__() > 10:
+        raise web.HTTPBadRequest(reason='{"error": "too many urls in request, should be 10 or less"}')
     for url in urls:
         parsing_result.append(await process_article(session, morph, charged_words, url))
     return web.json_response(json.loads(str(parsing_result).replace("'", '"')), dumps=ndjson.dumps)
