@@ -22,7 +22,7 @@ async def fetch(session, url):
         return await response.text()
 
 
-async def process_article(session, morph, charged_words, url):
+async def process_article(session, parsing_duration, morph, charged_words, url):
     @contextmanager
     def counter():
         nonlocal current_time
@@ -32,7 +32,7 @@ async def process_article(session, morph, charged_words, url):
     parsing_status = 'Ok'
     time_delta, jaundice_rate, words = 0.0, 0, []
     try:
-        async with timeout(10):
+        async with timeout(parsing_duration):
             html = await fetch(session, url)
             start_time = current_time = monotonic()
             with counter():
@@ -41,7 +41,7 @@ async def process_article(session, morph, charged_words, url):
                 jaundice_rate = calculate_jaundice_rate(words, charged_words)
             time_delta = current_time - start_time  # здесь current_time = значению уже после выполнения блока под with
             await asyncio.sleep(0.1)  # это чек-поинт окончания блока для asyncio.timeout(!=0)
-    except aiohttp.client_exceptions.ClientResponseError:
+    except (aiohttp.client_exceptions.ClientResponseError, aiohttp.client_exceptions.InvalidURL):
         parsing_status = 'WRONG URL!'
     except ArticleNotFound:
         parsing_status = 'PARSING_ERROR'
@@ -63,11 +63,12 @@ async def process_article(session, morph, charged_words, url):
 async def handle(request, morph, charged_words):
     async with aiohttp.ClientSession() as session:
         parsing_result = []
+        parsing_duration = 10
         urls = dict(request.query)['urls'].split(",")
         if urls.__len__() > 10:
             raise web.HTTPBadRequest(reason='{"error": "too many urls in request, should be 10 or less"}')
         for url in urls:
-            parsing_result.append(await process_article(session, morph, charged_words, url))
+            parsing_result.append(await process_article(session, parsing_duration, morph, charged_words, url))
         return web.json_response(json.loads(str(parsing_result).replace("'", '"')), dumps=ndjson.dumps)
 
 
@@ -88,8 +89,18 @@ async def test_process_article():
     morph = pymorphy2.MorphAnalyzer()
     with open('negative_words.txt', encoding="utf-8") as file:
         charged_words = [word.replace('\n', '') for word in file.readlines()]
-    async with aiohttp.ClientSession() as session:
-        status = await process_article(session, morph, charged_words,
-                                       'https://inosmi.ru/20231212/diplomatiya-267037596.html')[13:14]
-        assert status == ['Ok']
-        # assert await split_by_words(morph, '«Удивительно, но это стало началом!»') == ['удивительно', 'это', 'стать', 'начало']
+    
+    async def call_process_article(parsing_duration, url):
+        async with aiohttp.ClientSession() as session:
+            return await process_article(session, parsing_duration, morph, charged_words, url)
+    
+    assert (await call_process_article(10, 'https://inosmi.ru/20231212/diplomatiya-267037596.html'))['status'] == 'Ok'
+
+    assert (await call_process_article(10,
+                                       'https://inosmi.ru/20231212/ssha-267035917.html--'))['status'] == 'WRONG URL!'
+
+    assert (await call_process_article(10,
+                                       'https://dvmn.org/filer/canonical/1561832205/162/'))['status'] == 'PARSING_ERROR'
+
+    assert (await call_process_article(.10,
+                                       'https://inosmi.ru/20231212/diplomatiya-267037596.html'))['status'] == 'TIMEOUT'

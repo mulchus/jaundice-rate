@@ -4,7 +4,7 @@ import sys
 import functools
 import server
 
-
+# ссылки на статьи для проверок
 # 'https://inosmi.ru/20231212/diplomatiya-267037596.html',
 # 'https://inosmi.ru/20231212/zelenskiy--267038091.html',
 # 'https://inosmi.ru/20231212/zelenskiy-267038799.html',
@@ -34,13 +34,13 @@ async def main():
     with open('negative_words.txt', encoding="utf-8") as file:
         charged_words = [word.replace('\n', '') for word in file.readlines()]
 
-        # try:
-        async with anyio.create_task_group() as task_group:
-            task_group.start_soon(functools.partial(server.server, charged_words))
+        try:
+            async with anyio.create_task_group() as task_group:
+                task_group.start_soon(functools.partial(server.server, charged_words))
 
-        # except* Exception as excgroup:
-        #     for _ in excgroup.exceptions:
-        #         task_group.cancel_scope.cancel()
+        except* Exception as excgroup:
+            for _ in excgroup.exceptions:
+                task_group.cancel_scope.cancel()
 
 
 if __name__ == "__main__":

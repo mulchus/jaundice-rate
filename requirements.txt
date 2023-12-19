@@ -9,5 +9,5 @@ DAWG-Python==0.7.*
 anyio==4.1.*
 async-timeout==4.0.*
 #cchardet==2.*
-#pytest-asyncio==0.23.*
+pytest-asyncio==0.23.*
 ndjson==0.3.*
