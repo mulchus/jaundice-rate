@@ -3,7 +3,7 @@ import asyncio
 import ndjson
 import aiohttp
 import pytest
-
+import logging
 
 from aiohttp import web
 from adapters.inosmi_ru import sanitize, ArticleNotFound
@@ -15,6 +15,8 @@ from text_tools import calculate_jaundice_rate, split_by_words, pymorphy2
 
 pytest_plugins = ('pytest_asyncio',)
 
+parsing_logger = logging.getLogger('parsing_logger')
+
 
 async def fetch(session, url):
     async with session.get(url) as response:
@@ -24,7 +26,7 @@ async def fetch(session, url):
 
 async def process_article(session, parsing_duration, morph, charged_words, url):
     @contextmanager
-    def counter():
+    def get_current_time():
         nonlocal current_time
         yield
         current_time = monotonic()
@@ -35,7 +37,7 @@ async def process_article(session, parsing_duration, morph, charged_words, url):
         async with timeout(parsing_duration):
             html = await fetch(session, url)
             start_time = current_time = monotonic()
-            with counter():
+            with get_current_time():
                 clean_plaintext = sanitize(html, plaintext=True)
                 words = await split_by_words(morph, clean_plaintext)
                 jaundice_rate = calculate_jaundice_rate(words, charged_words)
@@ -57,6 +59,8 @@ async def process_article(session, parsing_duration, morph, charged_words, url):
         if time_delta:
             article_result['score'] = jaundice_rate
             article_result['words_count'] = len(words)
+        else:
+            parsing_logger.error(article_result)
     return article_result
 
 
