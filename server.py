@@ -24,25 +24,22 @@ async def fetch(session, url):
         return await response.text()
 
 
-async def process_article(session, parsing_duration, morph, charged_words, url):
-    @contextmanager
-    def get_current_time():
-        nonlocal current_time
-        yield
-        current_time = monotonic()
+@contextmanager
+def register_time_delta():
+    start_time = monotonic()
+    yield
+    parsing_logger.info(f' Анализ закончен за {monotonic() - start_time} сек,')
 
+
+async def process_article(session, parsing_duration, morph, charged_words, url):
     parsing_status = 'Ok'
-    time_delta, jaundice_rate, words = 0.0, 0, []
     try:
-        async with timeout(parsing_duration):
-            html = await fetch(session, url)
-            start_time = current_time = monotonic()
-            with get_current_time():
+        with register_time_delta():
+            async with timeout(parsing_duration):
+                html = await fetch(session, url)
                 clean_plaintext = sanitize(html, plaintext=True)
                 words = await split_by_words(morph, clean_plaintext)
                 jaundice_rate = calculate_jaundice_rate(words, charged_words)
-            time_delta = current_time - start_time  # здесь current_time = значению уже после выполнения блока под with
-            await asyncio.sleep(0.1)  # это чек-поинт окончания блока для asyncio.timeout(!=0)
     except (aiohttp.client_exceptions.ClientResponseError, aiohttp.client_exceptions.InvalidURL):
         parsing_status = 'WRONG URL!'
     except ArticleNotFound:
@@ -56,9 +53,10 @@ async def process_article(session, parsing_duration, morph, charged_words, url):
             'score': 'null',
             'words_count': 'null',
         }
-        if time_delta:
+        if parsing_status == 'Ok':
             article_result['score'] = jaundice_rate
             article_result['words_count'] = len(words)
+            parsing_logger.info(article_result)
         else:
             parsing_logger.error(article_result)
     return article_result
@@ -92,11 +90,11 @@ async def test_process_article():
     morph = pymorphy2.MorphAnalyzer()
     with open('negative_words.txt', encoding="utf-8") as file:
         charged_words = [word.replace('\n', '') for word in file.readlines()]
-    
+
     async def call_process_article(parsing_duration, url):
         async with aiohttp.ClientSession() as session:
             return await process_article(session, parsing_duration, morph, charged_words, url)
-    
+
     assert (await call_process_article(10, 'https://inosmi.ru/20231212/diplomatiya-267037596.html'))['status'] == 'Ok'
 
     assert (await call_process_article(10,
